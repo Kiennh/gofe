@@ -1,12 +1,17 @@
 package fe
 
 import (
-	models "../models"
-	"golang.org/x/crypto/ssh"
+	"io"
+	"io/ioutil"
 	"log"
 	"net"
+	"os"
 	"strings"
 	"time"
+
+	models "../models"
+	"github.com/pkg/sftp"
+	"golang.org/x/crypto/ssh"
 )
 
 const DefaultTimeout = 30 * time.Second
@@ -50,11 +55,78 @@ func normalizePath(path string) string {
 	if !strings.HasPrefix(path, "/") {
 		return "/" + path
 	}
-	return path
+	return "'" + path + "'"
+}
+
+func (fe *SSHFileExplorer) ReadFile(path string) ([]byte, error) {
+	c, err := sftp.NewClient(fe.client, sftp.MaxPacket(1<<15))
+	if err != nil {
+		return nil, err
+	}
+	defer c.Close()
+
+	r, err := c.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+
+	// Open file on  local for write
+	w, err := ioutil.TempFile("", "gofe-readfile-")
+	if err != nil {
+		return nil, err
+	}
+	defer os.Remove(w.Name()) // clean up
+
+	_, err = io.Copy(w, r)
+	if err != nil {
+		return nil, err
+	}
+
+	return ioutil.ReadFile(w.Name())
+}
+
+func (fe *SSHFileExplorer) Save(path string, data []byte) error {
+	tmpfile, err := ioutil.TempFile("", "gofe-edit-")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmpfile.Name()) // clean up
+	_, err = tmpfile.Write(data)
+	if err != nil {
+		return err
+	}
+
+	err = tmpfile.Close()
+	if err != nil {
+		return err
+	}
+	f, err := os.Open(tmpfile.Name())
+	if err != nil {
+		return err
+	}
+
+	c, err := sftp.NewClient(fe.client, sftp.MaxPacket(1<<15))
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+
+	w, err := c.Create(path)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+
+	_, err = io.Copy(w, f)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (fe *SSHFileExplorer) Mkdir(path string, name string) error {
-	return fe.ExecOnly("mkdir " + normalizePath(path) + "/" + name)
+	return fe.ExecOnly("mkdir -p " + normalizePath(path) + "/" + name)
 }
 
 func (fe *SSHFileExplorer) ListDir(path string) ([]models.ListDirEntry, error) {
@@ -77,8 +149,11 @@ func (fe *SSHFileExplorer) Delete(path string) error {
 	return fe.ExecOnly("rm -r " + normalizePath(path))
 }
 
-func (fe *SSHFileExplorer) Chmod(path string, code string) error {
-	return fe.ExecOnly("chmod " + code + " " + normalizePath(path))
+func (fe *SSHFileExplorer) Chmod(path, perms, permsCode string, recusive bool) error {
+	if !recusive {
+		return fe.ExecOnly("chmod " + permsCode + " " + normalizePath(path))
+	}
+	return fe.ExecOnly("chmod -r " + permsCode + " " + normalizePath(path))
 }
 
 func (fe *SSHFileExplorer) Close() error {
@@ -122,7 +197,9 @@ func parseLsOutput(lsout string) []models.ListDirEntry {
 				if strings.HasPrefix(tokens[0], "d") {
 					ftype = "dir"
 				}
-				results = append(results, models.ListDirEntry{tokens[7], tokens[0], tokens[4], tokens[5] + " " + tokens[6] + ":00", ftype})
+				// file name has spaces
+				i := strings.Index(line, tokens[7])
+				results = append(results, models.ListDirEntry{line[i:], tokens[0], tokens[4], tokens[5] + " " + tokens[6] + ":00", ftype})
 			}
 		}
 	}

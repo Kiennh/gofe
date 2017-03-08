@@ -4,18 +4,21 @@ type GenericReq struct {
 	Params GenericParams `json:"params" binding:"Required"`
 }
 type GenericParams struct {
-	Mode             string `json:"mode" binding:"Required"`
-	OnlyFoldreferers bool   `json:"onlyFolders"` // list
-	Path             string `json:"path"`        // ALL
-	NewPath          string `json:"newPath"`     // move/rename, copy
-	Content          string `json:"content"`     // edit
-	Name             string `json:"name"`        // addfolder
-	Perms            string `json:"perms"`       // changepermissions
-	PermsCode        string `json:"permsCode"`   // changepermissions
-	Recursive        bool   `json:"recursive"`   // changepermissions
-	Destination      string `json:"destination"` // compress, extract
-	SourceFile       string `json:"sourceFile"`  // extract
-	Preview          bool   `json:"preview"`     // download
+	Mode             string   `json:"action" binding:"Required"`
+	OnlyFoldreferers bool     `json:"onlyFolders"` // list
+	Path             string   `json:"path"`        // ALL
+	Item             string   `json:"item"`        // ALL
+	NewItemPath      string   `json:"newItemPath"`
+	Items            []string `json:"items"`
+	NewPath          string   `json:"newPath"`     // move/rename, copy
+	Content          string   `json:"content"`     // edit
+	Name             string   `json:"name"`        // addfolder
+	Perms            string   `json:"perms"`       // changepermissions
+	PermsCode        string   `json:"permsCode"`   // changepermissions
+	Recursive        bool     `json:"recursive"`   // changepermissions
+	Destination      string   `json:"destination"` // compress, extract
+	SourceFile       string   `json:"sourceFile"`  // extract
+	Preview          bool     `json:"preview"`     // download
 }
 type ListDirResp struct {
 	Result []ListDirEntry `json:"result" binding:"Required"`

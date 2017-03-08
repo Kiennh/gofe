@@ -9,6 +9,7 @@ var (
 	Backend struct {
 		Type string
 		Host string
+		Home string
 	}
 	Server struct {
 		Type    string
@@ -32,6 +33,7 @@ func Load() {
 	// Backend Section
 	backend := Cfg.Section("backend." + Backend.Type)
 	Backend.Host = backend.Key("HOST").MustString("localhost:22")
+	Backend.Home = backend.Key("HOME").MustString("/home")
 
 	// Server Section
 	server := Cfg.Section("server." + Server.Type)
